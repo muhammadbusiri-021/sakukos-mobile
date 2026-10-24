@@ -8,15 +8,17 @@
 [![Security](https://img.shields.io/badge/Security-Hybrid%20SHA--256%20%2B%20Biometrics-3B82F6)](#)
 [![Architecture](https://img.shields.io/badge/Architecture-Clean%20%26%20Modular-slate)](#)
 
-> **SakuKos** adalah aplikasi pencatatan keuangan dan manajemen talangan (*split-bill*) yang dirancang khusus untuk mahasiswa dan anak kos. Mengusung filosofi desain modern ala *fintech*, **100% offline-first**, bebas *AI-slop*, tanpa elemen berlebih, dan didukung mesin grafis **Impeller Vulkan (120 FPS)**.
+> **SakuKos** adalah aplikasi pencatatan keuangan dan manajemen talangan (_split-bill_) yang dirancang khusus untuk mahasiswa dan anak kos. Mengusung filosofi desain modern ala _fintech_, **100% offline-first**, bebas _AI-slop_, tanpa elemen berlebih, dan didukung mesin grafis **Impeller Vulkan (120 FPS)**.
 
 ---
 
 ## 🎯 Masalah yang Dipecahkan (The Problem)
+
 Bagi anak kos, aplikasi keuangan konvensional sering kali:
+
 1. Terlalu rumit dengan puluhan form input yang melelahkan.
 2. Memerlukan koneksi internet dan login akun, padahal anak kos butuh mencatat instan dalam hitungan detik.
-3. Sering lupa siapa yang berhutang atau menalangi saat makan bersama (*split-bill*).
+3. Sering lupa siapa yang berhutang atau menalangi saat makan bersama (_split-bill_).
 4. Khawatir data privasi keuangan bocor ke pihak ketiga.
 
 **SakuKos** memecahkan masalah ini dengan sistem **Catat Cepat berbasis Heuristik Alami**, **Pencatatan Talangan Taktil**, dan **Arsitektur Penyimpanan Lokal Terenkripsi**.
@@ -26,30 +28,35 @@ Bagi anak kos, aplikasi keuangan konvensional sering kali:
 ## ✨ Fitur Utama (Key Features)
 
 ### 1. ⚡ Catat Cepat (Natural Language Parser)
-- Cukup ketik layaknya berbicara: *"makan 15k"* atau *"uang saku 500rb"*.
-- Heuristic Regex Parser secara otomatis mengekstrak nominal, tipe transaksi (pemasukan/pengeluaran), serta menebak kategori secara cerdas dengan opsi *override* instan.
+
+- Cukup ketik layaknya berbicara: _"makan 15k"_ atau _"uang saku 500rb"_.
+- Heuristic Regex Parser secara otomatis mengekstrak nominal, tipe transaksi (pemasukan/pengeluaran), serta menebak kategori secara cerdas dengan opsi _override_ instan.
 
 ### 2. 🤝 Tracker Talangan (Split-Bill & Hutang-Piutang)
+
 - Memisahkan catatan uang harian dengan uang talangan teman.
 - Tabulasi tegas: **Belum Lunas** vs **Riwayat Lunas**.
-- Tidak menggunakan *swipe accidental gestures* (menggunakan tombol hapus eksplisit dengan dialog konfirmasi aman).
+- Tidak menggunakan _swipe accidental gestures_ (menggunakan tombol hapus eksplisit dengan dialog konfirmasi aman).
 
 ### 3. 🛡️ Keamanan Hybrid (PIN 6-Digit SHA-256 + Biometrik)
+
 - **Kunci Induk (Master Key)**: PIN 6 Digit yang di-hash dengan enkripsi **SHA-256** di penyimpanan lokal (tidak pernah disimpan dalam plaintext).
-- **Buka Cepat**: Integrasi sensor Sidik Jari (*Android BiometricPrompt*).
-- **Anti-Race Condition**: Dirancang dengan *lifecycle guard* dan jeda waktu (*grace period*) 2 detik serta timer guard 600 ms, sehingga bebas dari masalah *double-prompt* atau *infinite loop* saat penutupan dialog sistem.
+- **Buka Cepat**: Integrasi sensor Sidik Jari (_Android BiometricPrompt_).
+- **Anti-Race Condition**: Dirancang dengan _lifecycle guard_ dan jeda waktu (_grace period_) 2 detik serta timer guard 600 ms, sehingga bebas dari masalah _double-prompt_ atau _infinite loop_ saat penutupan dialog sistem.
 - **Emergency Bypass**: Mencegah pengguna terkunci jika belum mengatur kombinasi PIN.
 
 ### 4. 📊 Laporan & Riwayat Fleksibel
+
 - Filter kategori bergaya horizontal chip ala WhatsApp diawali chip permanen `[ Semua ]`.
 - Pencarian transaksi instan berdasarkan judul maupun catatan tambahan.
 - Warna teks nominal terstandardisasi: **Rose** (`#F43F5E`) untuk pengeluaran dan **Emerald** (`#10B981`) untuk pemasukan.
-- **Ekspor CSV**: Ekspor transaksi dan riwayat talangan ke format spreadsheet dengan standar UTF-8 BOM (`\uFEFF`) terintegrasi langsung ke *Android Share Sheet*.
+- **Ekspor CSV**: Ekspor transaksi dan riwayat talangan ke format spreadsheet dengan standar UTF-8 BOM (`\uFEFF`) terintegrasi langsung ke _Android Share Sheet_.
 
 ### 5. 🎨 Desain Presisi Tinggi (High-Contrast Fintech Aesthetics)
+
 - Menggunakan tipografi **Plus Jakarta Sans**.
 - Palet warna: **Dark Slate** (`#0F172A`), **Soft Cloud Light** (`#F8FAFC`), **Emerald** (`#10B981`), dan **Rose** (`#F43F5E`).
-- *ThemeNotifier* responsif (Toggle Gelap & Terang dalam 1 sentuhan).
+- _ThemeNotifier_ responsif (Toggle Gelap & Terang dalam 1 sentuhan).
 - Logo khas Dual-Arc SakuKos yang dilukis presisi menggunakan `CustomPainter`.
 
 ---
@@ -108,6 +115,7 @@ lib/
 ## 🚀 Cara Menjalankan Proyek (Getting Started)
 
 ### Prasyarat:
+
 - Flutter SDK (>= 3.22.x)
 - Android SDK dengan dukungan Java 17
 - Editor: VS Code atau Android Studio dengan ekstensi Flutter & Dart
@@ -116,27 +124,33 @@ lib/
 ### Langkah Instalasi:
 
 1. **Clone repositori**:
+
    ```bash
-   git clone https://github.com/username/sakukos.git
-   cd sakukos
+   git clone https://github.com/muhammadbusiri-021/sakukos-mobile.git
+   cd sakukos-mobile
    ```
 
 2. **Pasang seluruh dependensi**:
+
    ```bash
    flutter pub get
    ```
 
 3. **Verifikasi kualitas kode**:
+
    ```bash
    flutter analyze
    ```
-   *Output yang diharapkan: `No issues found!`*
+
+   _Output yang diharapkan: `No issues found!`_
 
 4. **Jalankan pengujian otomatis**:
+
    ```bash
    flutter test
    ```
-   *Output yang diharapkan: `100/100 All tests passed!`*
+
+   _Output yang diharapkan: `100/100 All tests passed!`_
 
 5. **Jalankan aplikasi di perangkat**:
    ```bash
@@ -148,26 +162,32 @@ lib/
 ## 📦 Build & Unduh Release APK (Release Deployment)
 
 ### 1. Build File APK Mandiri
+
 Untuk menghasilkan file installer APK Release yang teroptimasi:
+
 ```bash
 flutter build apk --release
 ```
 
 Hasil kompilasi APK akan berada di lokasi:
+
 ```text
 build/app/outputs/flutter-apk/app-release.apk
 ```
 
 ### 2. Penamaan File Rilis
+
 Anda dapat mengganti nama file tersebut menjadi format rilis resmi:
+
 ```text
 SakuKos-v1.0.0.apk
 ```
 
 ### 3. Petunjuk Instalasi di HP Android:
+
 1. Salin file `SakuKos-v1.0.0.apk` ke penyimpanan HP Android Anda.
 2. Buka aplikasi File Manager, lalu ketuk file `SakuKos-v1.0.0.apk`.
-3. Izinkan opsi *"Install from Unknown Sources"* (jika diminta oleh sistem).
+3. Izinkan opsi _"Install from Unknown Sources"_ (jika diminta oleh sistem).
 4. Tekan **Install** dan buka **SakuKos**.
 5. Buka menu pengaturan budget untuk mengaktifkan **Kunci PIN 6 Digit** dan **Kunci Sidik Jari** untuk perlindungan maksimal.
 
@@ -177,19 +197,29 @@ SakuKos-v1.0.0.apk
 
 Semua fungsionalitas inti telah melalui pengujian otomatis komprehensif:
 
-| Modul Pengujian | Deskripsi Skenario | Status |
-| :--- | :--- | :---: |
-| `security_service_test.dart` | SHA-256 Hashing, PIN Verification, Biometrics & Emergency Bypass | **PASSED** (9/9) |
-| `biometric_service_test.dart` | Compatibility adapter & local_auth exception handling | **PASSED** (7/7) |
-| `category_service_test.dart` | Dynamic category CRUD, reserved keywords, auto-cleaning | **PASSED** (7/7) |
-| `csv_export_service_test.dart` | UTF-8 BOM encoding & CSV delimiter formatting | **PASSED** (5/5) |
-| `debt_service_test.dart` | Debt model serialization & Hive state management | **PASSED** (5/5) |
-| `smart_text_parser_test.dart` | Indonesian natural language regex & nominal parser | **PASSED** (34/34) |
-| `theme_test.dart` | Dark & Light Theme palette, typography, and contrast | **PASSED** (6/6) |
-| `widget_test.dart` | Complete UI flows, Numpad interactions, charts, and lifecycle | **PASSED** (23/23) |
-| **Total** | **Seluruh Rangkaian Pengujian SakuKos** | **100/100 PASSED** |
+| Modul Pengujian                | Deskripsi Skenario                                               |       Status       |
+| :----------------------------- | :--------------------------------------------------------------- | :----------------: |
+| `security_service_test.dart`   | SHA-256 Hashing, PIN Verification, Biometrics & Emergency Bypass |  **PASSED** (9/9)  |
+| `biometric_service_test.dart`  | Compatibility adapter & local_auth exception handling            |  **PASSED** (7/7)  |
+| `category_service_test.dart`   | Dynamic category CRUD, reserved keywords, auto-cleaning          |  **PASSED** (7/7)  |
+| `csv_export_service_test.dart` | UTF-8 BOM encoding & CSV delimiter formatting                    |  **PASSED** (5/5)  |
+| `debt_service_test.dart`       | Debt model serialization & Hive state management                 |  **PASSED** (5/5)  |
+| `smart_text_parser_test.dart`  | Indonesian natural language regex & nominal parser               | **PASSED** (34/34) |
+| `theme_test.dart`              | Dark & Light Theme palette, typography, and contrast             |  **PASSED** (6/6)  |
+| `widget_test.dart`             | Complete UI flows, Numpad interactions, charts, and lifecycle    | **PASSED** (23/23) |
+| **Total**                      | **Seluruh Rangkaian Pengujian SakuKos**                          | **100/100 PASSED** |
+
+---
+
+## 👨‍💻 Pengembang (Author)
+
+Dikembangkan oleh **Moh. Busiri**  
+Mahasiswa Teknik Informatika
+
+- GitHub: [@muhammadbusiri-021](https://github.com/muhammadbusiri-021)
 
 ---
 
 ## 📄 Lisensi (License)
+
 Proyek ini didistribusikan di bawah lisensi MIT. Silakan gunakan dan kembangkan secara bebas untuk kemaslahatan komunitas mahasiswa dan anak kos di seluruh Indonesia.
