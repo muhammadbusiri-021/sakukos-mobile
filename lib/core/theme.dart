@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 /// Palet warna Mode Gelap (Dark Slate)
 abstract final class SakuKosDarkColors {
@@ -109,13 +110,50 @@ class SakuKosPalette extends ThemeExtension<SakuKosPalette> {
   }
 }
 
-/// Controller sederhana berbasis [ValueNotifier<ThemeMode>] untuk beralih mode tema.
+/// Controller sederhana berbasis [ValueNotifier<ThemeMode>] untuk beralih mode tema
+/// dengan persistensi lokal ke Hive box 'settings_box'.
 class ThemeNotifier extends ValueNotifier<ThemeMode> {
+  static const String boxName = 'settings_box';
+  static const String keyIsDarkMode = 'is_dark_mode';
+
+  /// Flag pengaktif persistensi ke Hive (aktif secara default di produksi).
+  bool persistToHive = true;
+
   ThemeNotifier([super.value = ThemeMode.dark]);
 
-  /// Beralih antara Dark Mode dan Light Mode.
+  /// Menginisialisasi preferensi tema yang tersimpan di Hive.
+  Future<void> init() async {
+    if (!persistToHive) return;
+    try {
+      final box = Hive.isBoxOpen(boxName)
+          ? Hive.box(boxName)
+          : await Hive.openBox(boxName);
+      final isDark = box.get(keyIsDarkMode, defaultValue: true) as bool;
+      value = isDark ? ThemeMode.dark : ThemeMode.light;
+    } catch (_) {
+      // Pertahankan nilai default jika Hive belum siap/gagal
+    }
+  }
+
+  /// Beralih antara Dark Mode dan Light Mode serta menyimpannya ke Hive.
   void toggleTheme() {
-    value = value == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    final nextMode = value == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    value = nextMode;
+    _persistTheme(nextMode == ThemeMode.dark);
+  }
+
+  /// Mengatur tema secara eksplisit dan menyimpannya ke Hive.
+  void setDarkMode(bool isDark) {
+    value = isDark ? ThemeMode.dark : ThemeMode.light;
+    _persistTheme(isDark);
+  }
+
+  void _persistTheme(bool isDark) {
+    if (persistToHive && Hive.isBoxOpen(boxName)) {
+      try {
+        Hive.box(boxName).put(keyIsDarkMode, isDark);
+      } catch (_) {}
+    }
   }
 
   bool get isDarkMode => value == ThemeMode.dark;

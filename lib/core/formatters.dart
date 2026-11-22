@@ -39,6 +39,34 @@ abstract final class SakuKosFormatters {
     'Desember',
   ];
 
+  static const List<String> shortMonthNames = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'Mei',
+    'Jun',
+    'Jul',
+    'Agu',
+    'Sep',
+    'Okt',
+    'Nov',
+    'Des',
+  ];
+
+  /// Format rentang minggu kalender: "1 - 7 Nov 2026" atau "27 Okt - 2 Nov 2026".
+  static String formatWeekRange(DateTime start, DateTime end) {
+    final startMonth = shortMonthNames[start.month - 1];
+    final endMonth = shortMonthNames[end.month - 1];
+    if (start.year == end.year) {
+      if (start.month == end.month) {
+        return '${start.day} - ${end.day} $endMonth ${end.year}';
+      }
+      return '${start.day} $startMonth - ${end.day} $endMonth ${end.year}';
+    }
+    return '${start.day} $startMonth ${start.year} - ${end.day} $endMonth ${end.year}';
+  }
+
   /// Format tanggal Indonesia lengkap: "Kamis, 22 Oktober 2026"
   static String indonesianDate(DateTime date) {
     final dayName = dayNames[date.weekday - 1];

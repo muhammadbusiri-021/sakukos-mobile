@@ -8,11 +8,14 @@ import '../widgets/budget_settings_bottom_sheet.dart';
 import '../widgets/cashflow_summary_card.dart';
 import '../widgets/transaction_detail_bottom_sheet.dart';
 import '../widgets/weekly_expense_chart.dart';
+import 'main_screen.dart';
 
 /// Halaman Dashboard utama SakuKos: Menampilkan header tetap (fixed header),
-/// hero card jatah harian, grafik tren 7 hari, dan transaksi terkini.
+/// hero card jatah harian, grafik tren 7 hari, dan 5 transaksi terkini.
 class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key});
+  final VoidCallback? onNavigateToReport;
+
+  const DashboardScreen({super.key, this.onNavigateToReport});
 
   IconData _getCategoryIcon(String category) {
     switch (category) {
@@ -382,8 +385,8 @@ class DashboardScreen extends StatelessWidget {
                               ],
                             ),
                           )
-                        else
-                          ...transactions.map((item) {
+                        else ...[
+                          ...transactions.take(5).map((item) {
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 12),
                               child: Container(
@@ -406,92 +409,125 @@ class DashboardScreen extends StatelessWidget {
                                     padding: const EdgeInsets.all(16),
                                     child: Row(
                                       children: [
-                                      // Ikon Kategori
-                                      Container(
-                                        padding: const EdgeInsets.all(10),
-                                        decoration: BoxDecoration(
-                                          color: item.isExpense
-                                              ? colors.rose.withAlpha(30)
-                                              : colors.emerald.withAlpha(30),
-                                          borderRadius:
-                                              BorderRadius.circular(10),
+                                        // Ikon Kategori
+                                        Container(
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: item.isExpense
+                                                ? colors.rose.withAlpha(30)
+                                                : colors.emerald.withAlpha(30),
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                          ),
+                                          child: Icon(
+                                            _getCategoryIcon(item.category),
+                                            size: 20,
+                                            color: item.isExpense
+                                                ? colors.rose
+                                                : colors.emerald,
+                                          ),
                                         ),
-                                        child: Icon(
-                                          _getCategoryIcon(item.category),
-                                          size: 20,
-                                          color: item.isExpense
-                                              ? colors.rose
-                                              : colors.emerald,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
+                                        const SizedBox(width: 12),
 
-                                      // Judul & Waktu
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              item.title,
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w600,
-                                                color: colors.textPrimary,
+                                        // Judul & Waktu
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                item.title,
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: colors.textPrimary,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
                                               ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Row(
-                                              children: [
-                                                Text(
-                                                  item.category,
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    color: colors.textSecondary,
+                                              const SizedBox(height: 2),
+                                              Row(
+                                                children: [
+                                                  Text(
+                                                    item.category,
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      color:
+                                                          colors.textSecondary,
+                                                    ),
                                                   ),
-                                                ),
-                                                Text(
-                                                  ' • ',
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    color: colors.textSecondary,
+                                                  Text(
+                                                    ' • ',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      color:
+                                                          colors.textSecondary,
+                                                    ),
                                                   ),
-                                                ),
-                                                Text(
-                                                  SakuKosFormatters.time(
-                                                    item.date,
+                                                  Text(
+                                                    SakuKosFormatters.time(
+                                                      item.date,
+                                                    ),
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      color:
+                                                          colors.textSecondary,
+                                                    ),
                                                   ),
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    color: colors.textSecondary,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
+                                                ],
+                                              ),
+                                            ],
+                                          ),
                                         ),
-                                      ),
 
-                                      // Nominal bersih tanpa tanda +/-
-                                      Text(
-                                        SakuKosFormatters.rupiah(item.amount),
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
-                                          color: item.isExpense
-                                              ? colors.rose
-                                              : colors.emerald,
+                                        // Nominal bersih tanpa tanda +/-
+                                        Text(
+                                          SakuKosFormatters.rupiah(item.amount),
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                            color: item.isExpense
+                                                ? colors.rose
+                                                : colors.emerald,
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4, bottom: 8),
+                            child: Center(
+                              child: TextButton(
+                                key: const Key('see_all_transactions_button'),
+                                onPressed: () {
+                                  if (onNavigateToReport != null) {
+                                    onNavigateToReport!();
+                                  } else {
+                                    MainScreen.switchTab(context, 2);
+                                  }
+                                },
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                ),
+                                child: Text(
+                                  'Lihat Semua Transaksi →',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: colors.emerald,
                                   ),
                                 ),
                               ),
                             ),
-                          );
-                          }),
+                          ),
+                        ],
 
                         // ── Bottom Spacing ekstra agar tidak tertutup FAB ─
                         const SizedBox(height: 80),

@@ -168,10 +168,11 @@ class SmartTextParser {
     final trimmed = input.trim();
     if (trimmed.isEmpty) return null;
 
-    final lower = trimmed.toLowerCase();
+    final normalized = replaceIndonesianNumberWords(trimmed);
+    final lower = normalized.toLowerCase();
 
     // 1. Ekstraksi Nominal
-    final amountMatch = _extractAmount(trimmed);
+    final amountMatch = _extractAmount(normalized);
     if (amountMatch == null || amountMatch.amount <= 0) {
       return null;
     }
@@ -183,7 +184,7 @@ class SmartTextParser {
     final category = _detectCategory(lower);
 
     // 4. Ekstraksi Judul Bersih
-    final title = _extractTitle(trimmed, amountMatch, category);
+    final title = _extractTitle(normalized, amountMatch, category);
 
     return ParsedTransaction(
       title: title,
@@ -378,5 +379,234 @@ class SmartTextParser {
       if (word.isEmpty) return word;
       return word[0].toUpperCase() + word.substring(1).toLowerCase();
     }).join(' ');
+  }
+
+  static const Set<String> _scaleTokens = {
+    'sejuta',
+    'seribu',
+    'seratus',
+    'juta',
+    'jt',
+    'ribu',
+    'rb',
+    'ratus',
+  };
+
+  /// Mengonversi frasa kata angka bahasa Indonesia (contoh: "dua puluh lima ribu", "sepuluh rb", "sejuta")
+  /// menjadi representasi nominal numerik ("25000", "10000", "1000000").
+  static String replaceIndonesianNumberWords(String text) {
+    final pattern = RegExp(
+      r'\b(?:sejuta|seribu|seratus|sepuluh|sebelas|setengah|satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|belas|puluh|ratus|ribu|rb|juta|jt)(?:\s+(?:sejuta|seribu|seratus|sepuluh|sebelas|setengah|satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|belas|puluh|ratus|ribu|rb|juta|jt))*\b',
+      caseSensitive: false,
+    );
+
+    return text.replaceAllMapped(pattern, (match) {
+      final matchedText = match.group(0)!;
+      final tokens = matchedText
+          .toLowerCase()
+          .split(RegExp(r'\s+'))
+          .where((t) => t.isNotEmpty)
+          .toList();
+
+      final parsedValue = _parseNumberPhrase(tokens);
+      if (parsedValue != null && parsedValue > 0) {
+        return parsedValue.toString();
+      }
+      return matchedText;
+    });
+  }
+
+  static int? _parseNumberPhrase(List<String> words) {
+    if (words.isEmpty) return null;
+
+    // Harus mengandung setidaknya satu kata skala moneter
+    if (!words.any((w) => _scaleTokens.contains(w))) {
+      return null;
+    }
+
+    if (words.length == 1) {
+      if (words[0] == 'sejuta') return 1000000;
+      if (words[0] == 'seribu') return 1000;
+      if (words[0] == 'seratus') return 100;
+      return null;
+    }
+
+    int total = 0;
+    var remaining = words;
+
+    // 1. Ekstraksi Jutaan (juta / jt)
+    final jutaIdx = remaining.indexWhere((w) => w == 'juta' || w == 'jt');
+    if (jutaIdx != -1) {
+      final millionsWords = remaining.sublist(0, jutaIdx);
+      int millionMultiplier;
+      if (millionsWords.isEmpty) {
+        millionMultiplier = 1;
+      } else if (millionsWords.length == 1 && millionsWords[0] == 'setengah') {
+        total += 500000;
+        millionMultiplier = 0;
+      } else {
+        final parsed = _parseSubThousand(millionsWords);
+        if (parsed == null) return null;
+        millionMultiplier = parsed;
+      }
+      total += millionMultiplier * 1000000;
+      remaining = remaining.sublist(jutaIdx + 1);
+    }
+
+    // 2. Ekstraksi Ribuan (ribu / rb)
+    final ribuIdx = remaining.indexWhere((w) => w == 'ribu' || w == 'rb');
+    if (ribuIdx != -1) {
+      final thousandsWords = remaining.sublist(0, ribuIdx);
+      int thousandMultiplier;
+      if (thousandsWords.isEmpty) {
+        thousandMultiplier = 1;
+      } else if (thousandsWords.length == 1 &&
+          thousandsWords[0] == 'setengah') {
+        total += 500;
+        thousandMultiplier = 0;
+      } else {
+        final parsed = _parseSubThousand(thousandsWords);
+        if (parsed == null) return null;
+        thousandMultiplier = parsed;
+      }
+      total += thousandMultiplier * 1000;
+      remaining = remaining.sublist(ribuIdx + 1);
+    }
+
+    // 3. Sisa Ratusan / Satuan jika ada
+    if (remaining.isNotEmpty) {
+      final sub = _parseSubThousand(remaining);
+      if (sub != null) {
+        total += sub;
+      }
+    }
+
+    return total > 0 ? total : null;
+  }
+
+  static int? _parseSubThousand(List<String> words) {
+    if (words.isEmpty) return null;
+
+    if (words.length == 1) {
+      if (words[0] == 'seratus') return 100;
+      if (words[0] == 'seribu') return 1000;
+      if (words[0] == 'sejuta') return 1000000;
+      if (words[0] == 'sepuluh') return 10;
+      if (words[0] == 'sebelas') return 11;
+    }
+
+    int total = 0;
+    var remaining = words;
+
+    final ratusIdx = remaining.indexWhere((w) => w == 'ratus');
+    if (ratusIdx != -1) {
+      final hundredsWords = remaining.sublist(0, ratusIdx);
+      int hundredMultiplier;
+      if (hundredsWords.isEmpty ||
+          (hundredsWords.length == 1 &&
+              (hundredsWords[0] == 'se' || hundredsWords[0] == 'satu'))) {
+        hundredMultiplier = 1;
+      } else {
+        final parsedDigit = _parseDigit(hundredsWords.last);
+        if (parsedDigit == null) return null;
+        hundredMultiplier = parsedDigit;
+      }
+      total += hundredMultiplier * 100;
+      remaining = remaining.sublist(ratusIdx + 1);
+    } else if (remaining.isNotEmpty && remaining.first == 'seratus') {
+      total += 100;
+      remaining = remaining.sublist(1);
+    }
+
+    if (remaining.isNotEmpty) {
+      final tensAndUnits = _parseSubHundred(remaining);
+      if (tensAndUnits == null) return null;
+      total += tensAndUnits;
+    }
+
+    return total;
+  }
+
+  static int? _parseSubHundred(List<String> words) {
+    if (words.isEmpty) return 0;
+
+    if (words.length == 1) {
+      final w = words[0];
+      if (w == 'sepuluh') return 10;
+      if (w == 'sebelas') return 11;
+      final digit = _parseDigit(w);
+      if (digit != null) return digit;
+      return null;
+    }
+
+    if (words.length == 2 && words[1] == 'belas') {
+      if (words[0] == 'se' || words[0] == 'satu') return 11;
+      final digit = _parseDigit(words[0]);
+      if (digit != null && digit >= 2 && digit <= 9) {
+        return 10 + digit;
+      }
+      return null;
+    }
+
+    final puluhIdx = words.indexWhere((w) => w == 'puluh');
+    if (puluhIdx != -1) {
+      int tens;
+      final beforePuluh = words.sublist(0, puluhIdx);
+      if (beforePuluh.length == 1) {
+        if (beforePuluh[0] == 'se' || beforePuluh[0] == 'satu') {
+          tens = 10;
+        } else {
+          final digit = _parseDigit(beforePuluh[0]);
+          if (digit == null) return null;
+          tens = digit * 10;
+        }
+      } else if (beforePuluh.isEmpty) {
+        tens = 10;
+      } else {
+        return null;
+      }
+
+      final afterPuluh = words.sublist(puluhIdx + 1);
+      if (afterPuluh.isEmpty) {
+        return tens;
+      } else if (afterPuluh.length == 1) {
+        final digit = _parseDigit(afterPuluh[0]);
+        if (digit == null) return null;
+        return tens + digit;
+      } else {
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  static int? _parseDigit(String word) {
+    switch (word) {
+      case 'nol':
+      case 'kosong':
+        return 0;
+      case 'satu':
+      case 'se':
+        return 1;
+      case 'dua':
+        return 2;
+      case 'tiga':
+        return 3;
+      case 'empat':
+        return 4;
+      case 'lima':
+        return 5;
+      case 'enam':
+        return 6;
+      case 'tujuh':
+        return 7;
+      case 'delapan':
+        return 8;
+      case 'sembilan':
+        return 9;
+      default:
+        return null;
+    }
   }
 }

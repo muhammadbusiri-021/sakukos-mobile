@@ -3,7 +3,7 @@
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart&logoColor=white)](https://dart.dev)
 [![Database](https://img.shields.io/badge/Offline--First-Hive%20NoSQL-E53935)](https://pub.dev/packages/hive)
-[![Tests](https://img.shields.io/badge/Tests-100%2F100%20Passed-10B981)](#)
+[![Tests](https://img.shields.io/badge/Tests-107%2F107%20Passed-10B981)](#)
 [![Code Quality](https://img.shields.io/badge/flutter%20analyze-0%20Issues-10B981)](#)
 [![Security](https://img.shields.io/badge/Security-Hybrid%20SHA--256%20%2B%20Biometrics-3B82F6)](#)
 [![Architecture](https://img.shields.io/badge/Architecture-Clean%20%26%20Modular-slate)](#)
@@ -205,9 +205,10 @@ Semua fungsionalitas inti telah melalui pengujian otomatis komprehensif:
 | `csv_export_service_test.dart` | UTF-8 BOM encoding & CSV delimiter formatting                    |  **PASSED** (5/5)  |
 | `debt_service_test.dart`       | Debt model serialization & Hive state management                 |  **PASSED** (5/5)  |
 | `smart_text_parser_test.dart`  | Indonesian natural language regex & nominal parser               | **PASSED** (34/34) |
-| `theme_test.dart`              | Dark & Light Theme palette, typography, and contrast             |  **PASSED** (6/6)  |
-| `widget_test.dart`             | Complete UI flows, Numpad interactions, charts, and lifecycle    | **PASSED** (23/23) |
-| **Total**                      | **Seluruh Rangkaian Pengujian SakuKos**                          | **100/100 PASSED** |
+| `theme_test.dart`              | Dark & Light Theme palette, typography, and Hive persistence     |  **PASSED** (9/9)  |
+| `transaction_service_test.dart`| Transaction CRUD, sort order, and box operations                 |  **PASSED** (6/6)  |
+| `widget_test.dart`             | Complete UI flows, Numpad, periods, dashboard limit & lifecycle  | **PASSED** (25/25) |
+| **Total**                      | **Seluruh Rangkaian Pengujian SakuKos**                          | **107/107 PASSED** |
 
 ---
 

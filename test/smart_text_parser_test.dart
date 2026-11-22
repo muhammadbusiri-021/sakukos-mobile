@@ -172,6 +172,80 @@ void main() {
     });
   });
 
+  group('SmartTextParser Spoken Indonesian Number Words', () {
+    test('parses "nasi padang dua puluh lima ribu" correctly', () {
+      final result = SmartTextParser.parse('nasi padang dua puluh lima ribu');
+      expect(result, isNotNull);
+      expect(result!.title, 'Nasi Padang');
+      expect(result.amount, 25000.0);
+      expect(result.category, TransactionCategory.makan);
+      expect(result.isExpense, isTrue);
+      expect(result.note, 'nasi padang dua puluh lima ribu');
+    });
+
+    test('parses "kopi lima belas ribu" correctly', () {
+      final result = SmartTextParser.parse('kopi lima belas ribu');
+      expect(result, isNotNull);
+      expect(result!.title, 'Kopi');
+      expect(result.amount, 15000.0);
+      expect(result.category, TransactionCategory.makan);
+      expect(result.isExpense, isTrue);
+    });
+
+    test('parses standalone spoken amounts "sepuluh ribu", "seratus ribu", and "sejuta"', () {
+      final r1 = SmartTextParser.parse('sepuluh ribu');
+      expect(r1?.amount, 10000.0);
+      expect(r1?.title, TransactionCategory.makan);
+
+      final r2 = SmartTextParser.parse('seratus ribu');
+      expect(r2?.amount, 100000.0);
+      expect(r2?.title, TransactionCategory.makan);
+
+      final r3 = SmartTextParser.parse('sejuta');
+      expect(r3?.amount, 1000000.0);
+      expect(r3?.title, TransactionCategory.makan);
+
+      final r4 = SmartTextParser.parse('satu juta');
+      expect(r4?.amount, 1000000.0);
+    });
+
+    test('parses spoken income with number words "uang saku seratus ribu"', () {
+      final result = SmartTextParser.parse('uang saku seratus ribu');
+      expect(result, isNotNull);
+      expect(result!.title, 'Uang Saku');
+      expect(result.amount, 100000.0);
+      expect(result.isExpense, isFalse);
+    });
+
+    test('parses spoken phrases with rb suffix "sepuluh rb" and "dua puluh lima rb"', () {
+      final r1 = SmartTextParser.parse('bensin beat sepuluh rb');
+      expect(r1?.amount, 10000.0);
+      expect(r1?.category, TransactionCategory.transport);
+
+      final r2 = SmartTextParser.parse('makan bakso dua puluh lima rb');
+      expect(r2?.amount, 25000.0);
+      expect(r2?.category, TransactionCategory.makan);
+    });
+
+    test('parses complex scales "dua juta lima ratus ribu" and "setengah juta"', () {
+      final r1 = SmartTextParser.parse('gaji magang dua juta lima ratus ribu');
+      expect(r1?.amount, 2500000.0);
+      expect(r1?.isExpense, isFalse);
+
+      final r2 = SmartTextParser.parse('kiriman orang tua setengah juta');
+      expect(r2?.amount, 500000.0);
+      expect(r2?.isExpense, isFalse);
+    });
+
+    test('does not convert non-monetary standalone unit words like "satu porsi"', () {
+      final result = SmartTextParser.parse('beli satu porsi nasi goreng 25k');
+      expect(result, isNotNull);
+      expect(result!.title, 'Beli Satu Porsi Nasi Goreng');
+      expect(result.amount, 25000.0);
+      expect(result.category, TransactionCategory.makan);
+    });
+  });
+
   group('SmartTextParser Edge Cases and Fallbacks', () {
     test('returns null for empty or whitespace strings', () {
       expect(SmartTextParser.parse(''), isNull);

@@ -7,6 +7,21 @@ import '../services/debt_service.dart';
 import '../services/transaction_service.dart';
 import '../widgets/transaction_detail_bottom_sheet.dart';
 
+/// Model representasi kelompok riwayat transaksi berdasarkan periode waktu/minggu.
+class _TransactionGroup {
+  final String title;
+  final List<TransactionItem> items;
+  final double totalExpense;
+  final double totalIncome;
+
+  const _TransactionGroup({
+    required this.title,
+    required this.items,
+    required this.totalExpense,
+    required this.totalIncome,
+  });
+}
+
 /// Halaman Tab Laporan & Riwayat Keuangan:
 /// Menyediakan fitur pencarian real-time, filter kategori, ringkasan kalkulasi,
 /// dan ekspor laporan ke format CSV yang kompatibel dengan Excel & Google Sheets.
@@ -26,6 +41,76 @@ class _ReportScreenState extends State<ReportScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  String _buildGroupSubtotalText(double expense, double income) {
+    if (expense > 0 && income > 0) {
+      return 'Keluar: ${SakuKosFormatters.rupiah(expense)} • Masuk: ${SakuKosFormatters.rupiah(income)}';
+    } else if (expense > 0) {
+      return 'Total Keluar: ${SakuKosFormatters.rupiah(expense)}';
+    } else if (income > 0) {
+      return 'Total Masuk: ${SakuKosFormatters.rupiah(income)}';
+    } else {
+      return 'Total: Rp 0';
+    }
+  }
+
+  List<_TransactionGroup> _groupTransactions(List<TransactionItem> transactions) {
+    if (transactions.isEmpty) return [];
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+
+    // Senin minggu ini (ISO week: Monday = 1)
+    final thisWeekMonday = today.subtract(Duration(days: today.weekday - 1));
+    final thisWeekSunday = thisWeekMonday.add(const Duration(days: 6));
+
+    // Senin & Minggu minggu lalu
+    final lastWeekMonday = thisWeekMonday.subtract(const Duration(days: 7));
+    final lastWeekSunday = thisWeekMonday.subtract(const Duration(days: 1));
+
+    final groupsMap = <String, List<TransactionItem>>{};
+
+    for (final item in transactions) {
+      final itemDate = DateTime(item.date.year, item.date.month, item.date.day);
+      String groupKey;
+
+      if (itemDate == today) {
+        groupKey = 'Hari Ini';
+      } else if (itemDate == yesterday) {
+        groupKey = 'Kemarin';
+      } else if (itemDate.isAfter(thisWeekMonday.subtract(const Duration(milliseconds: 1))) &&
+          itemDate.isBefore(thisWeekSunday.add(const Duration(days: 1)))) {
+        groupKey = 'Minggu Ini';
+      } else if (itemDate.isAfter(lastWeekMonday.subtract(const Duration(milliseconds: 1))) &&
+          itemDate.isBefore(lastWeekSunday.add(const Duration(days: 1)))) {
+        groupKey = 'Minggu Lalu';
+      } else {
+        final itemWeekMonday = itemDate.subtract(Duration(days: itemDate.weekday - 1));
+        final itemWeekSunday = itemWeekMonday.add(const Duration(days: 6));
+        groupKey = 'Minggu ${SakuKosFormatters.formatWeekRange(itemWeekMonday, itemWeekSunday)}';
+      }
+
+      groupsMap.putIfAbsent(groupKey, () => []).add(item);
+    }
+
+    return groupsMap.entries.map((entry) {
+      final items = entry.value;
+      final expense = items
+          .where((t) => t.isExpense)
+          .fold<double>(0.0, (sum, t) => sum + t.amount);
+      final income = items
+          .where((t) => !t.isExpense)
+          .fold<double>(0.0, (sum, t) => sum + t.amount);
+
+      return _TransactionGroup(
+        title: entry.key,
+        items: items,
+        totalExpense: expense,
+        totalIncome: income,
+      );
+    }).toList();
   }
 
   IconData _getCategoryIcon(String category) {
@@ -534,119 +619,171 @@ class _ReportScreenState extends State<ReportScreen> {
                             ],
                           ),
                         )
-                      else
-                        ...filtered.map((item) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: colors.card,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: colors.border,
-                                  width: 1,
+                      else ...[
+                        ..._groupTransactions(filtered).map((group) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(4, 10, 4, 10),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      group.title,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: colors.textPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        _buildGroupSubtotalText(
+                                          group.totalExpense,
+                                          group.totalIncome,
+                                        ),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: colors.textSecondary,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.end,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              child: InkWell(
-                                key: Key('report_transaction_card_${item.id}'),
-                                borderRadius: BorderRadius.circular(16),
-                                onTap: () => showTransactionDetailBottomSheet(
-                                  context,
-                                  item,
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Row(
-                                    children: [
-                                      // Ikon Kategori
-                                      Container(
-                                        padding: const EdgeInsets.all(10),
-                                        decoration: BoxDecoration(
-                                          color: item.isExpense
-                                              ? colors.rose.withAlpha(30)
-                                              : colors.emerald.withAlpha(30),
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                        child: Icon(
-                                          _getCategoryIcon(item.category),
-                                          size: 20,
-                                          color: item.isExpense
-                                              ? colors.rose
-                                              : colors.emerald,
-                                        ),
+                              ...group.items.map((item) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: colors.card,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: colors.border,
+                                        width: 1,
                                       ),
-                                      const SizedBox(width: 12),
-
-                                      // Judul & Waktu
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
+                                    ),
+                                    child: InkWell(
+                                      key: Key(
+                                          'report_transaction_card_${item.id}'),
+                                      borderRadius: BorderRadius.circular(16),
+                                      onTap: () =>
+                                          showTransactionDetailBottomSheet(
+                                        context,
+                                        item,
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: Row(
                                           children: [
+                                            // Ikon Kategori
+                                            Container(
+                                              padding: const EdgeInsets.all(10),
+                                              decoration: BoxDecoration(
+                                                color: item.isExpense
+                                                    ? colors.rose.withAlpha(30)
+                                                    : colors.emerald
+                                                        .withAlpha(30),
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                              ),
+                                              child: Icon(
+                                                _getCategoryIcon(
+                                                    item.category),
+                                                size: 20,
+                                                color: item.isExpense
+                                                    ? colors.rose
+                                                    : colors.emerald,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+
+                                            // Judul & Waktu
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    item.title,
+                                                    style: TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: colors.textPrimary,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Row(
+                                                    children: [
+                                                      Text(
+                                                        item.category,
+                                                        style: TextStyle(
+                                                          fontSize: 11,
+                                                          color: colors
+                                                              .textSecondary,
+                                                        ),
+                                                      ),
+                                                      Text(
+                                                        ' • ',
+                                                        style: TextStyle(
+                                                          fontSize: 11,
+                                                          color: colors
+                                                              .textSecondary,
+                                                        ),
+                                                      ),
+                                                      Text(
+                                                        SakuKosFormatters
+                                                            .indonesianDate(
+                                                          item.date,
+                                                        ),
+                                                        style: TextStyle(
+                                                          fontSize: 11,
+                                                          color: colors
+                                                              .textSecondary,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+
+                                            // Nominal bersih
                                             Text(
-                                              item.title,
+                                              SakuKosFormatters.rupiah(
+                                                  item.amount),
                                               style: TextStyle(
                                                 fontSize: 14,
-                                                fontWeight: FontWeight.w600,
-                                                color: colors.textPrimary,
+                                                fontWeight: FontWeight.w700,
+                                                color: item.isExpense
+                                                    ? colors.rose
+                                                    : colors.emerald,
                                               ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Row(
-                                              children: [
-                                                Text(
-                                                  item.category,
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    color:
-                                                        colors.textSecondary,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  ' • ',
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    color:
-                                                        colors.textSecondary,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  SakuKosFormatters.indonesianDate(
-                                                    item.date,
-                                                  ),
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    color:
-                                                        colors.textSecondary,
-                                                  ),
-                                                ),
-                                              ],
                                             ),
                                           ],
                                         ),
                                       ),
-
-                                      // Nominal bersih
-                                      Text(
-                                        SakuKosFormatters.rupiah(item.amount),
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
-                                          color: item.isExpense
-                                              ? colors.rose
-                                              : colors.emerald,
-                                        ),
-                                      ),
-                                    ],
+                                    ),
                                   ),
-                                ),
-                              ),
-                            ),
+                                );
+                              }),
+                            ],
                           );
                         }),
+                      ],
 
                       // Spacing bawah
                       const SizedBox(height: 80),

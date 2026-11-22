@@ -6,27 +6,34 @@ import '../models/transaction_item.dart';
 import '../services/category_service.dart';
 import '../services/smart_text_parser.dart';
 import '../services/transaction_service.dart';
+import '../services/voice_recognition_service.dart';
 
 /// Menampilkan Modal Bottom Sheet untuk menambahkan transaksi baru dengan
 /// dukungan Catat Cepat (Smart Text Parser) dan Form Manual, serta mode edit.
 Future<void> showAddTransactionBottomSheet(
   BuildContext context, {
   TransactionItem? initialItem,
+  VoiceRecognitionService? voiceService,
 }) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (context) => AddTransactionBottomSheet(initialItem: initialItem),
+    builder: (context) => AddTransactionBottomSheet(
+      initialItem: initialItem,
+      voiceService: voiceService,
+    ),
   );
 }
 
 class AddTransactionBottomSheet extends StatefulWidget {
   final TransactionItem? initialItem;
+  final VoiceRecognitionService? voiceService;
 
   const AddTransactionBottomSheet({
     super.key,
     this.initialItem,
+    this.voiceService,
   });
 
   @override
@@ -43,6 +50,9 @@ class _AddTransactionBottomSheetState extends State<AddTransactionBottomSheet> {
   ParsedTransaction? get _parsedResult => _parsedTransaction;
 
   bool _hasManuallySelectedCategory = false;
+  late final VoiceRecognitionService _voiceService;
+  bool _isListening = false;
+  bool _isDisposed = false;
 
   // Controllers untuk Form Manual
   final _formKey = GlobalKey<FormState>();
@@ -56,6 +66,7 @@ class _AddTransactionBottomSheetState extends State<AddTransactionBottomSheet> {
   @override
   void initState() {
     super.initState();
+    _voiceService = widget.voiceService ?? VoiceRecognitionService();
     final item = widget.initialItem;
     if (item != null) {
       _selectedTabIndex = 1;
@@ -74,11 +85,58 @@ class _AddTransactionBottomSheetState extends State<AddTransactionBottomSheet> {
 
   @override
   void dispose() {
+    _isDisposed = true;
+    _voiceService.stopListening();
     _smartTextController.dispose();
     _titleController.dispose();
     _amountController.dispose();
     _noteController.dispose();
     super.dispose();
+  }
+
+  Future<void> _toggleVoiceInput() async {
+    if (_isListening) {
+      await _voiceService.stopListening();
+      if (mounted && !_isDisposed) {
+        setState(() => _isListening = false);
+      }
+    } else {
+      final available = await _voiceService.initialize();
+      if (!available) {
+        if (mounted && !_isDisposed) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Layanan pengenal suara atau izin mikrofon tidak tersedia',
+              ),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        return;
+      }
+
+      if (mounted && !_isDisposed) {
+        setState(() => _isListening = true);
+      }
+
+      await _voiceService.startListening(
+        onResult: (text) {
+          if (!mounted || _isDisposed) return;
+          _smartTextController.text = text;
+          _smartTextController.selection = TextSelection.fromPosition(
+            TextPosition(offset: text.length),
+          );
+          _onSmartTextChanged(text);
+        },
+        onListeningChanged: (listening) {
+          if (mounted && !_isDisposed) {
+            setState(() => _isListening = listening);
+          }
+        },
+      );
+    }
   }
 
   IconData _getCategoryIcon(String category) {
@@ -562,13 +620,41 @@ class _AddTransactionBottomSheetState extends State<AddTransactionBottomSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Input Bahasa Santai',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textSecondary,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Input Bahasa Santai',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: colors.textSecondary,
+              ),
+            ),
+            if (_isListening)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: colors.rose,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Mendengarkan...',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: colors.rose,
+                    ),
+                  ),
+                ],
+              ),
+          ],
         ),
         const SizedBox(height: 6),
         TextFormField(
@@ -582,26 +668,48 @@ class _AddTransactionBottomSheetState extends State<AddTransactionBottomSheet> {
             height: 1.4,
           ),
           decoration: InputDecoration(
-            hintText: 'Contoh: makan geprek mas kobis 18k atau bensin beat 25rb',
+            hintText: _isListening
+                ? 'Bicara sekarang... (contoh: "makan geprek 18k")'
+                : 'Contoh: makan geprek mas kobis 18k atau bensin beat 25rb',
             hintStyle: TextStyle(
-              color: colors.textSecondary.withAlpha(180),
+              color: _isListening
+                  ? colors.rose.withAlpha(200)
+                  : colors.textSecondary.withAlpha(180),
               fontSize: 13,
               height: 1.4,
             ),
             filled: true,
             fillColor: colors.scaffold,
-            contentPadding: const EdgeInsets.all(14),
+            contentPadding: const EdgeInsets.fromLTRB(14, 14, 8, 14),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide(color: colors.border),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: colors.border),
+              borderSide: BorderSide(
+                color: _isListening ? colors.rose : colors.border,
+                width: _isListening ? 1.5 : 1.0,
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: colors.emerald, width: 1.5),
+              borderSide: BorderSide(
+                color: _isListening ? colors.rose : colors.emerald,
+                width: 1.5,
+              ),
+            ),
+            suffixIcon: IconButton(
+              key: const Key('voice_input_button'),
+              tooltip: _isListening
+                  ? 'Berhenti mendengarkan'
+                  : 'Bicara untuk mencatat',
+              icon: Icon(
+                _isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
+                color: _isListening ? colors.rose : colors.emerald,
+                size: 22,
+              ),
+              onPressed: _toggleVoiceInput,
             ),
           ),
           onChanged: _onSmartTextChanged,
@@ -787,79 +895,84 @@ class _AddTransactionBottomSheetState extends State<AddTransactionBottomSheet> {
           ),
         ),
         const SizedBox(height: 8),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              ...categories.map((category) {
-                final isSelected =
-                    _selectedCategory.toLowerCase() == category.toLowerCase();
-                return Padding(
+        ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 46),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                ...categories.map((category) {
+                  final isSelected =
+                      _selectedCategory.toLowerCase() == category.toLowerCase();
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onLongPress: () => _showDeleteCategoryDialog(
+                        context,
+                        category,
+                        colors,
+                      ),
+                      child: ChoiceChip(
+                        key: Key('category_chip_$category'),
+                        label: Text(category),
+                        selected: isSelected,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        onSelected: (selected) {
+                          if (selected) {
+                            setState(() {
+                              _selectedCategory = category;
+                              _hasManuallySelectedCategory = true;
+                            });
+                          }
+                        },
+                        selectedColor: colors.emerald.withAlpha(45),
+                        backgroundColor: colors.scaffold,
+                        labelStyle: TextStyle(
+                          fontSize: 12,
+                          fontWeight:
+                              isSelected ? FontWeight.w700 : FontWeight.w500,
+                          color: isSelected
+                              ? colors.emerald
+                              : colors.textSecondary,
+                        ),
+                        side: BorderSide(
+                          color: isSelected ? colors.emerald : colors.border,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+                Padding(
                   padding: const EdgeInsets.only(right: 8),
-                  child: GestureDetector(
-                    onLongPress: () => _showDeleteCategoryDialog(
-                      context,
-                      category,
-                      colors,
-                    ),
-                    child: ChoiceChip(
-                      key: Key('category_chip_$category'),
-                      label: Text(category),
-                      selected: isSelected,
-                      onSelected: (selected) {
-                        if (selected) {
-                          setState(() {
-                            _selectedCategory = category;
-                            _hasManuallySelectedCategory = true;
-                          });
-                        }
-                      },
-                      selectedColor: colors.emerald.withAlpha(45),
-                      backgroundColor: colors.scaffold,
-                      labelStyle: TextStyle(
-                        fontSize: 12,
-                        fontWeight:
-                            isSelected ? FontWeight.w700 : FontWeight.w500,
-                        color: isSelected
-                            ? colors.emerald
-                            : colors.textSecondary,
-                      ),
-                      side: BorderSide(
-                        color: isSelected ? colors.emerald : colors.border,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                  ),
-                );
-              }),
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ActionChip(
-                  key: const Key('add_category_chip'),
-                  onPressed: () => _showAddCategoryDialog(context, colors),
-                  avatar: Icon(
-                    Icons.add_rounded,
-                    size: 16,
-                    color: colors.emerald,
-                  ),
-                  label: Text(
-                    'Tambah',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                  child: ActionChip(
+                    key: const Key('add_category_chip'),
+                    onPressed: () => _showAddCategoryDialog(context, colors),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    avatar: Icon(
+                      Icons.add_rounded,
+                      size: 16,
                       color: colors.emerald,
                     ),
-                  ),
-                  backgroundColor: colors.scaffold,
-                  side: BorderSide(color: colors.border),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
+                    label: Text(
+                      'Tambah',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: colors.emerald,
+                      ),
+                    ),
+                    backgroundColor: colors.scaffold,
+                    side: BorderSide(color: colors.border),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ],
@@ -894,9 +1007,10 @@ class _AddTransactionBottomSheetState extends State<AddTransactionBottomSheet> {
                             ? colors.rose.withAlpha(40)
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(8),
-                        border: _isExpense
-                            ? Border.all(color: colors.rose)
-                            : null,
+                        border: Border.all(
+                          color: _isExpense ? colors.rose : Colors.transparent,
+                          width: 1,
+                        ),
                       ),
                       alignment: Alignment.center,
                       child: Text(
@@ -924,9 +1038,10 @@ class _AddTransactionBottomSheetState extends State<AddTransactionBottomSheet> {
                             ? colors.emerald.withAlpha(40)
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(8),
-                        border: !_isExpense
-                            ? Border.all(color: colors.emerald)
-                            : null,
+                        border: Border.all(
+                          color: !_isExpense ? colors.emerald : Colors.transparent,
+                          width: 1,
+                        ),
                       ),
                       alignment: Alignment.center,
                       child: Text(

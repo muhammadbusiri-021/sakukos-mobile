@@ -13,9 +13,13 @@ import 'package:sakukos/services/biometric_service.dart';
 import 'package:sakukos/services/budget_service.dart';
 import 'package:sakukos/services/category_service.dart';
 import 'package:sakukos/services/security_service.dart';
+import 'package:sakukos/services/voice_recognition_service.dart';
+import 'package:sakukos/widgets/add_transaction_bottom_sheet.dart';
 import 'package:sakukos/widgets/budget_settings_bottom_sheet.dart';
 import 'package:sakukos/services/debt_service.dart';
 import 'package:sakukos/services/transaction_service.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 class _FakeLocalAuth extends Fake implements LocalAuthentication {
   bool authResult = true;
@@ -40,6 +44,73 @@ class _FakeLocalAuth extends Fake implements LocalAuthentication {
   }
 }
 
+class _FakeSpeechToText extends Fake implements SpeechToText {
+  bool initResult = true;
+  bool isAvailableVal = true;
+  bool isListeningVal = false;
+
+  @override
+  SpeechStatusListener? statusListener;
+  @override
+  SpeechErrorListener? errorListener;
+  SpeechResultListener? resultListener;
+
+  @override
+  bool get isAvailable => isAvailableVal;
+
+  @override
+  bool get isListening => isListeningVal;
+
+  @override
+  Future<bool> initialize({
+    SpeechErrorListener? onError,
+    SpeechStatusListener? onStatus,
+    debugLogging = false,
+    Duration finalTimeout = SpeechToText.defaultFinalTimeout,
+    List<SpeechConfigOption>? options,
+  }) async {
+    statusListener = onStatus;
+    errorListener = onError;
+    return initResult;
+  }
+
+  @override
+  Future<List<LocaleName>> locales() async => [
+        LocaleName('id_ID', 'Bahasa Indonesia'),
+      ];
+
+  @override
+  Future<void> listen({
+    SpeechResultListener? onResult,
+    Duration? listenFor,
+    Duration? pauseFor,
+    String? localeId,
+    dynamic onSoundLevelChange,
+    cancelOnError = false,
+    partialResults = true,
+    dynamic onDevice = false,
+    ListenMode listenMode = ListenMode.confirmation,
+    sampleRate = 0,
+    SpeechListenOptions? listenOptions,
+  }) async {
+    resultListener = onResult;
+    isListeningVal = true;
+    statusListener?.call('listening');
+  }
+
+  @override
+  Future<void> stop() async {
+    isListeningVal = false;
+    statusListener?.call('notListening');
+  }
+
+  @override
+  Future<void> cancel() async {
+    isListeningVal = false;
+    statusListener?.call('done');
+  }
+}
+
 void main() {
   late Directory tempDir;
   late TransactionService service;
@@ -53,6 +124,7 @@ void main() {
   setUp(() async {
     GoogleFonts.config.allowRuntimeFetching = false;
     themeNotifier.value = ThemeMode.dark;
+    themeNotifier.persistToHive = false;
     tempDir = await Directory.systemTemp.createTemp('sakukos_widget_test_');
     Hive.init(tempDir.path);
     service = TransactionService();
@@ -1540,5 +1612,205 @@ void main() {
 
     await tester.pumpWidget(const SizedBox());
     await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+      'DashboardScreen limits transactions to 5 and "Lihat Semua Transaksi →" navigates to Tab Laporan',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
+    // Pre-populate with 8 transactions
+    await tester.runAsync(() async {
+      for (int i = 1; i <= 8; i++) {
+        await service.addTransaction(
+          TransactionItem(
+            id: 'tx_dash_$i',
+            title: 'Transaksi Ke-$i',
+            amount: 10000.0 * i,
+            category: TransactionCategory.makan,
+            isExpense: true,
+            date: DateTime.now().subtract(Duration(minutes: i)),
+          ),
+        );
+      }
+    });
+
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    // Verify header counter says '8 transaksi'
+    expect(find.text('8 transaksi'), findsOneWidget);
+
+    // Only the 5 most recent transactions should be rendered on dashboard
+    expect(find.text('Transaksi Ke-1'), findsOneWidget);
+    expect(find.text('Transaksi Ke-2'), findsOneWidget);
+    expect(find.text('Transaksi Ke-3'), findsOneWidget);
+    expect(find.text('Transaksi Ke-4'), findsOneWidget);
+    expect(find.text('Transaksi Ke-5'), findsOneWidget);
+    expect(find.text('Transaksi Ke-6'), findsNothing);
+    expect(find.text('Transaksi Ke-7'), findsNothing);
+    expect(find.text('Transaksi Ke-8'), findsNothing);
+
+    // Verify "Lihat Semua Transaksi →" button exists
+    final seeAllBtn = find.byKey(const Key('see_all_transactions_button'));
+    expect(seeAllBtn, findsOneWidget);
+    expect(find.text('Lihat Semua Transaksi →'), findsOneWidget);
+
+    // Tap "Lihat Semua Transaksi →"
+    await tester.tap(seeAllBtn);
+    await tester.pumpAndSettle();
+
+    // Should navigate to Tab Laporan (index 2)
+    expect(find.text('Laporan & Riwayat'), findsOneWidget);
+    expect(find.text('Menampilkan 8 transaksi'), findsOneWidget);
+  });
+
+  testWidgets(
+      'ReportScreen groups transactions into periods (Hari Ini, Kemarin, Minggu Ini, Minggu Lalu) with subtotal headers',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    // Monday of this week
+    final thisWeekMonday = today.subtract(Duration(days: today.weekday - 1));
+    // Monday of last week
+    final lastWeekMonday = thisWeekMonday.subtract(const Duration(days: 7));
+
+    await tester.runAsync(() async {
+      // 1. Hari ini
+      await service.addTransaction(
+        TransactionItem(
+          id: 'tx_period_today',
+          title: 'Makan Siang Hari Ini',
+          amount: 25000,
+          category: TransactionCategory.makan,
+          isExpense: true,
+          date: now,
+        ),
+      );
+      // 2. Kemarin
+      await service.addTransaction(
+        TransactionItem(
+          id: 'tx_period_yesterday',
+          title: 'Kopi Kemarin Sore',
+          amount: 15000,
+          category: TransactionCategory.nongkrong,
+          isExpense: true,
+          date: today.subtract(const Duration(hours: 5)),
+        ),
+      );
+      // 3. Minggu lalu
+      await service.addTransaction(
+        TransactionItem(
+          id: 'tx_period_lastweek',
+          title: 'Laundry Minggu Lalu',
+          amount: 30000,
+          category: TransactionCategory.kosan,
+          isExpense: true,
+          date: lastWeekMonday.add(const Duration(hours: 10)),
+        ),
+      );
+    });
+
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    // Navigate to Laporan tab
+    await tester.tap(find.byKey(const Key('nav_tab_2')));
+    await tester.pumpAndSettle();
+
+    // Verify Period Headers exist
+    expect(find.text('Hari Ini'), findsOneWidget);
+    expect(find.text('Kemarin'), findsOneWidget);
+    expect(find.text('Minggu Lalu'), findsOneWidget);
+
+    // Verify subtotal amounts on group headers
+    expect(find.text('Total Keluar: Rp 25.000'), findsOneWidget);
+    expect(find.text('Total Keluar: Rp 15.000'), findsOneWidget);
+    expect(find.text('Total Keluar: Rp 30.000'), findsOneWidget);
+  });
+
+  testWidgets(
+      'AddTransactionBottomSheet voice input listens, populates text, and triggers live preview',
+      (WidgetTester tester) async {
+    final fakeSpeech = _FakeSpeechToText();
+    final mockVoiceService = VoiceRecognitionService(speechToText: fakeSpeech);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: sakuKosDarkTheme(),
+        home: Scaffold(
+          body: AddTransactionBottomSheet(voiceService: mockVoiceService),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify mic button is idle
+    final micBtn = find.byKey(const Key('voice_input_button'));
+    expect(micBtn, findsOneWidget);
+    expect(find.byIcon(Icons.mic_none_rounded), findsOneWidget);
+
+    // Tap mic button to start listening
+    await tester.tap(micBtn);
+    await tester.pump();
+
+    // Verify listening state
+    expect(find.text('Mendengarkan...'), findsOneWidget);
+    expect(find.byIcon(Icons.mic_rounded), findsOneWidget);
+
+    // Simulate speech recognition result
+    final mockWords = <SpeechRecognitionWords>[
+      const SpeechRecognitionWords('nasi padang dua puluh lima ribu', [], 0.95),
+    ];
+    final mockResult = SpeechRecognitionResult(
+      mockWords,
+      ResultType.finalResult.value,
+    );
+    fakeSpeech.resultListener?.call(mockResult);
+    await tester.pump();
+
+    // Verify text field populated and live preview rendered
+    expect(find.text('nasi padang dua puluh lima ribu'), findsOneWidget);
+    expect(find.text('Nasi Padang'), findsOneWidget);
+    expect(find.text('Rp 25.000'), findsOneWidget);
+
+    // Tap mic button again to stop listening
+    await tester.tap(micBtn);
+    await tester.pump();
+
+    expect(find.text('Mendengarkan...'), findsNothing);
+    expect(find.byIcon(Icons.mic_none_rounded), findsOneWidget);
+  });
+
+  testWidgets(
+      'AddTransactionBottomSheet displays snackbar when voice recognition is unavailable',
+      (WidgetTester tester) async {
+    final fakeSpeech = _FakeSpeechToText()..initResult = false;
+    final mockVoiceService = VoiceRecognitionService(speechToText: fakeSpeech);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: sakuKosDarkTheme(),
+        home: Scaffold(
+          body: AddTransactionBottomSheet(voiceService: mockVoiceService),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final micBtn = find.byKey(const Key('voice_input_button'));
+    await tester.tap(micBtn);
+    await tester.pump();
+
+    expect(
+      find.text('Layanan pengenal suara atau izin mikrofon tidak tersedia'),
+      findsOneWidget,
+    );
   });
 }

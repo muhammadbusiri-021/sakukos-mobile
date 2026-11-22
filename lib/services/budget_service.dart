@@ -59,5 +59,5 @@ class BudgetService {
   }
 
   /// ValueListenable agar UI otomatis reaktif ketika batas budget diperbarui.
-  ValueListenable<Box> get listenable => box.listenable();
+  ValueListenable<Box> get listenable => box.listenable(keys: [keyDailyBudget]);
 }

@@ -20,6 +20,7 @@ void main() async {
   await CategoryService().init();
   await SecurityService().init();
   await BiometricService().init();
+  await themeNotifier.init();
   runApp(const MyApp());
 }
 

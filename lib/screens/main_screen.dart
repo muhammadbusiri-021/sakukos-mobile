@@ -11,6 +11,12 @@ import 'report_screen.dart';
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
+  /// Beralih tab navigasi secara terprogram dari widget turunan manapun.
+  static void switchTab(BuildContext context, int index) {
+    final state = context.findAncestorStateOfType<_MainScreenState>();
+    state?.setTab(index);
+  }
+
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
@@ -18,11 +24,23 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _pages = const [
-    DashboardScreen(),
-    DebtScreen(),
-    ReportScreen(),
-  ];
+  void setTab(int index) {
+    if (index >= 0 && index < 3) {
+      setState(() => _currentIndex = index);
+    }
+  }
+
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      DashboardScreen(onNavigateToReport: () => setTab(2)),
+      const DebtScreen(),
+      const ReportScreen(),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
